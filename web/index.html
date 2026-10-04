@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KMU26 · VLA ROV Console</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <a class="brand" href="/" aria-label="KMU26 VLA 홈"><span class="brand-mark">K</span><span>KMU26 <b>VLA</b></span></a>
+      <span class="connection" id="connection">● 서버 연결 중</span>
+    </header>
+    <main>
+      <div class="page-heading"><h1>ROV Console<span class="title-dot">.</span></h1><div class="status-pills" id="topics" role="group" aria-label="연결 상태"></div></div>
+      <div id="error" class="error" role="alert" hidden></div>
+      <section class="launch-controls" aria-label="런치 실행">
+        <form id="launch-form"><button class="launch-button" id="launch-button" type="submit" disabled><span id="button-label">ROV 시작</span><span class="launch-status-dot" aria-hidden="true" id="button-status"></span></button></form>
+        <form id="realsense-form"><button class="launch-button" id="realsense-button" type="submit" disabled><span id="realsense-label">리얼센스 카메라 시작</span><span class="launch-status-dot" aria-hidden="true" id="realsense-status"></span></button></form>
+        <button class="launch-button placeholder" id="imx219-button" type="button" disabled title="런치 준비 중"><span>IMX219 카메라</span><span class="launch-status-dot" aria-hidden="true"></span></button>
+      </section>
+      <div class="content-grid">
+        <section class="panel telemetry-panel" aria-labelledby="vehicle-heading">
+          <h2 id="vehicle-heading">기체 상태</h2>
+          <div class="telemetry-grid">
+            <div><span>MAVROS</span><strong id="mavros-connected">—</strong></div>
+            <div><span>모드</span><strong id="mode">—</strong></div>
+            <div><span>ARM</span><strong id="armed">—</strong></div>
+            <div><span>수심</span><strong><span id="depth">—</span><small> m</small></strong></div>
+            <div><span>배터리</span><strong><span id="voltage">—</span><small> V</small></strong></div>
+            <div><span>방위</span><strong><span id="yaw">—</span><small> °</small></strong></div>
+          </div>
+          <div class="detail-row"><span>위치</span><code id="position">X — Y — Z —</code></div>
+          <div class="detail-row"><span>조이스틱</span><code id="joy">입력 대기</code></div>
+        </section>
+        <section class="panel logs-panel" aria-labelledby="logs-heading"><h2 id="logs-heading">런치 로그</h2><pre id="logs" aria-label="런치 출력">아직 실행된 런치가 없습니다.</pre></section>
+      </div>
+      <footer><span>KMU26 AUV · VLA</span><span id="updated">상태 수신 대기</span></footer>
+    </main>
+  </div>
+</body>
+</html>
