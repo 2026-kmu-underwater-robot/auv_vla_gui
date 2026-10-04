@@ -2,7 +2,7 @@ from glob import glob
 
 from setuptools import setup
 
-package_name = "kmu26_auv_vla_gui"
+package_name = "auv_vla_gui"
 
 setup(
     name=package_name,
@@ -21,5 +21,5 @@ setup(
     maintainer_email="kuuve@todo.todo",
     description="Launch-oriented web GUI for KMU26 AUV VLA operation.",
     license="Apache-2.0",
-    entry_points={"console_scripts": ["server = kmu26_auv_vla_gui.server:main"]},
+    entry_points={"console_scripts": ["server = auv_vla_gui.server:main"]},
 )

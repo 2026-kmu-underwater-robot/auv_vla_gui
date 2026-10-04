@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>kmu26_auv_vla_gui</name>
+  <name>auv_vla_gui</name>
   <version>0.1.0</version>
   <description>Launch-oriented web GUI for KMU26 AUV VLA operation.</description>
   <maintainer email="kuuve@todo.todo">kuuve</maintainer>

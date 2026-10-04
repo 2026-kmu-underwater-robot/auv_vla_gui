@@ -6,8 +6,8 @@ import time
 from fastapi.testclient import TestClient
 import pytest
 
-from kmu26_auv_vla_gui.launch_manager import LaunchManager, ROV_DEFAULTS
-from kmu26_auv_vla_gui.server import create_app
+from auv_vla_gui.launch_manager import LaunchManager, ROV_DEFAULTS
+from auv_vla_gui.server import create_app
 from kmu26_auv_web_gui.process_manager import ManagedProcess
 
 
@@ -55,7 +55,7 @@ class FakeProcess:
 @pytest.fixture
 def console(monkeypatch):
     FakeProcess.calls = []
-    monkeypatch.setattr("kmu26_auv_vla_gui.launch_manager.ManagedProcess", FakeProcess)
+    monkeypatch.setattr("auv_vla_gui.launch_manager.ManagedProcess", FakeProcess)
     monkeypatch.setattr(LaunchManager, "_check_dependencies", lambda self, launch_id, args: None)
     manager, ros = LaunchManager(), FakeRos()
     with TestClient(create_app(manager=manager, ros=ros, web_dir=WEB_DIR)) as client:

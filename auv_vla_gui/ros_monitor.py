@@ -23,7 +23,7 @@ def finite(value):
 
 class RovMonitor(Node):
     def __init__(self):
-        super().__init__("kmu26_auv_vla_gui_monitor")
+        super().__init__("auv_vla_gui_monitor")
         self._lock = threading.Lock()
         self._values = {}
         self._health = {}
@@ -35,7 +35,7 @@ class RovMonitor(Node):
             ("imu", "/mavros/imu/data", Imu, 1.0, qos_profile_sensor_data),
             ("depth", "/depth/pose", PoseWithCovarianceStamped, 1.0, qos_profile_sensor_data),
             ("odom", "/odometry/filtered", Odometry, 1.0, qos_profile_sensor_data),
-            ("realsense", os.environ.get("KMU26_REALSENSE_IMAGE_TOPIC", "/camera/camera/color/image_raw"), Image, 2.0, qos_profile_sensor_data),
+            ("realsense", os.environ.get("AUV_VLA_GUI_REALSENSE_IMAGE_TOPIC", "/camera/camera/color/image_raw"), Image, 2.0, qos_profile_sensor_data),
         ]
         for key, topic, msg_type, timeout, qos in subscriptions:
             self._health[key] = {"name": topic, "timeout": timeout, "stamps": deque(maxlen=200)}

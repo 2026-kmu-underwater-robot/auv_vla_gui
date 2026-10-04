@@ -25,7 +25,7 @@ def create_app(*, manager=None, ros=None, web_dir=None):
         ros = RosInterface()
     if web_dir is None:
         from ament_index_python.packages import get_package_share_directory
-        web_dir = Path(get_package_share_directory("kmu26_auv_vla_gui")) / "web"
+        web_dir = Path(get_package_share_directory("auv_vla_gui")) / "web"
     web_dir = Path(web_dir)
 
     @asynccontextmanager
