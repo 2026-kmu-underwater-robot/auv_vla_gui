@@ -17,9 +17,19 @@
       <div class="page-heading"><h1>ROV Console<span class="title-dot">.</span></h1><div class="status-pills" id="topics" role="group" aria-label="연결 상태"></div></div>
       <div id="error" class="error" role="alert" hidden></div>
       <section class="launch-controls" aria-label="런치 실행">
-        <form id="launch-form"><button class="launch-button" id="launch-button" type="submit" disabled><span id="button-label">ROV 시작</span><span class="launch-status-dot" aria-hidden="true" id="button-status"></span></button></form>
-        <form id="realsense-form"><button class="launch-button" id="realsense-button" type="submit" disabled><span id="realsense-label">리얼센스 카메라 시작</span><span class="launch-status-dot" aria-hidden="true" id="realsense-status"></span></button></form>
-        <button class="launch-button placeholder" id="imx219-button" type="button" disabled title="런치 준비 중"><span>IMX219 카메라</span><span class="launch-status-dot" aria-hidden="true"></span></button>
+        <form id="launch-form" class="launch-control"><button class="launch-button" id="launch-button" type="submit" disabled><span id="button-label">ROV 시작</span><span class="launch-status-dot" aria-hidden="true" id="button-status"></span></button><button class="launch-stop" id="rov-stop" type="button" disabled>ROV 노드 종료</button></form>
+        <form id="realsense-form" class="launch-control"><button class="launch-button" id="realsense-button" type="submit" disabled><span id="realsense-label">리얼센스 카메라 시작</span><span class="launch-status-dot" aria-hidden="true" id="realsense-status"></span></button><button class="launch-stop" id="realsense-stop" type="button" disabled>리얼센스 노드 종료</button></form>
+        <form id="imx219-form" class="launch-control"><button class="launch-button" id="imx219-button" type="submit" disabled><span id="imx219-label">IMX219 카메라 시작</span><span class="launch-status-dot" aria-hidden="true" id="imx219-status"></span></button><button class="launch-stop" id="imx219-stop" type="button" disabled>IMX219 노드 종료</button></form>
+      </section>
+      <section class="camera-grid" aria-label="카메라 영상">
+        <article class="panel camera-panel">
+          <h2>리얼센스 <span class="camera-state" id="realsense-preview-state">영상 대기</span></h2>
+          <div class="camera-view"><img id="realsense-preview" alt="리얼센스 실시간 영상" hidden><span id="realsense-preview-empty">영상 수신 대기</span></div>
+        </article>
+        <article class="panel camera-panel">
+          <h2>IMX219 <span class="camera-state" id="imx219-preview-state">영상 대기</span></h2>
+          <div class="camera-view"><img id="imx219-preview" alt="IMX219 실시간 영상" hidden><span id="imx219-preview-empty">영상 수신 대기</span></div>
+        </article>
       </section>
       <div class="content-grid">
         <section class="panel telemetry-panel" aria-labelledby="vehicle-heading">
@@ -29,14 +39,58 @@
             <div><span>모드</span><strong id="mode">—</strong></div>
             <div><span>ARM</span><strong id="armed">—</strong></div>
             <div><span>수심</span><strong><span id="depth">—</span><small> m</small></strong></div>
-            <div><span>배터리</span><strong><span id="voltage">—</span><small> V</small></strong></div>
+            <div><span>배터리 전압</span><strong><span id="voltage">—</span><small> V</small></strong></div>
             <div><span>방위</span><strong><span id="yaw">—</span><small> °</small></strong></div>
+            <div><span>배터리 전류</span><strong><span id="battery-current">—</span><small> A</small></strong></div>
+            <div><span>배터리 잔량</span><strong><span id="battery-soc">—</span><small> %</small></strong></div>
+            <div><span>배터리 온도</span><strong><span id="battery-temperature">—</span><small> °C</small></strong></div>
           </div>
           <div class="detail-row"><span>위치</span><code id="position">X — Y — Z —</code></div>
           <div class="detail-row"><span>조이스틱</span><code id="joy">입력 대기</code></div>
         </section>
         <section class="panel logs-panel" aria-labelledby="logs-heading"><h2 id="logs-heading">런치 로그</h2><pre id="logs" aria-label="런치 출력">아직 실행된 런치가 없습니다.</pre></section>
       </div>
+      <section class="panel dvl-panel" aria-labelledby="dvl-heading">
+        <h2 id="dvl-heading">DVL 진단·설정 <span id="dvl-quality" class="camera-state">수신 대기</span></h2>
+        <div class="dvl-grid">
+          <div>
+            <div class="telemetry-grid">
+              <div><span>FOM</span><strong id="dvl-fom">—</strong></div>
+              <div><span>고도 (m)</span><strong id="dvl-altitude">—</strong></div>
+              <div><span>유효 빔</span><strong id="dvl-beams">—</strong></div>
+            </div>
+            <div class="detail-row"><span>속도 (m/s)</span><code id="dvl-velocity">X — Y — Z —</code></div>
+            <div class="detail-row"><span>설정</span><code id="dvl-config">설정 조회 대기</code></div>
+            <div class="detail-row"><span>음속 / 장착 각도</span><code id="dvl-mounting">—</code></div>
+            <div class="detail-row"><span>설정 확인</span><code id="dvl-config-time">—</code></div>
+            <div class="detail-row"><span>자이로 보정</span><code id="dvl-calibration">보정 대기</code></div>
+            <div id="dvl-response" class="command-status" role="status" aria-live="polite">명령 대기</div>
+          </div>
+          <div>
+            <div class="dvl-actions">
+              <button data-dvl-command="get_config" disabled>설정 조회</button>
+              <button data-dvl-command="set_config" data-dvl-param="acoustic_enabled" data-dvl-value="true" disabled>음향 켜기</button>
+              <button data-dvl-command="set_config" data-dvl-param="acoustic_enabled" data-dvl-value="false" disabled>음향 끄기</button>
+              <button data-dvl-command="set_config" data-dvl-param="dark_mode_enabled" data-dvl-value="true" disabled>다크 켜기</button>
+              <button data-dvl-command="set_config" data-dvl-param="dark_mode_enabled" data-dvl-value="false" disabled>다크 끄기</button>
+              <button data-dvl-command="set_config" data-dvl-param="range_mode" data-dvl-value="auto" disabled>범위 Auto</button>
+              <button data-dvl-command="set_config" data-dvl-param="range_mode" data-dvl-value="=1" disabled>범위 1</button>
+              <button data-dvl-command="calibrate_gyro" disabled>자이로 보정</button>
+              <button data-dvl-command="reset_dead_reckoning" disabled>DR 초기화</button>
+            </div>
+            <form id="dvl-setting-form" class="dvl-setting-form">
+              <select id="dvl-parameter" aria-label="DVL 설정 항목">
+                <option value="speed_of_sound">음속 (m/s)</option>
+                <option value="mounting_rotation_offset">장착 각도 (°)</option>
+                <option value="range_mode">범위 모드</option>
+              </select>
+              <input id="dvl-value" aria-label="DVL 설정 값" value="1500" required maxlength="32">
+              <button id="dvl-apply" disabled>적용</button>
+            </form>
+            <pre id="dvl-events" class="dvl-events" aria-label="DVL 장치 응답">장치 응답 대기</pre>
+          </div>
+        </div>
+      </section>
       <footer><span>KMU26 AUV · VLA</span><span id="updated">상태 수신 대기</span></footer>
     </main>
   </div>

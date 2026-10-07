@@ -16,6 +16,7 @@ setup(
         (f"share/{package_name}/web", glob("web/*")),
     ],
     install_requires=["setuptools", "fastapi", "uvicorn", "websockets"],
+    tests_require=["pytest", "httpx"],
     zip_safe=True,
     maintainer="kuuve",
     maintainer_email="kuuve@todo.todo",

@@ -1,4 +1,4 @@
-"""Web server: explicit launch actions and read-only ROV telemetry."""
+"""Web server for launch actions, telemetry, camera previews and DVL settings."""
 
 import argparse
 import asyncio
@@ -18,6 +18,12 @@ class StartRequest(BaseModel):
     launch_args: dict[str, str] = Field(default_factory=dict)
 
 
+class DvlRequest(BaseModel):
+    command: str
+    parameter_name: str = ""
+    parameter_value: str = ""
+
+
 def create_app(*, manager=None, ros=None, web_dir=None):
     manager = manager if manager is not None else LaunchManager()
     if ros is None:
@@ -35,13 +41,20 @@ def create_app(*, manager=None, ros=None, web_dir=None):
             yield
         finally:
             try:
-                # Finish process cleanup even if ROS launch cancels server shutdown.
-                manager.stop_all()
+                # Keep the driver and ROS spin thread alive until acoustic OFF
+                # has been attempted and its bounded acknowledgement wait ends.
+                manager.begin_shutdown()
+                try:
+                    ros.prepare_shutdown()
+                finally:
+                    # Always clean up groups, including when acoustic OFF fails.
+                    manager.shutdown()
             finally:
                 ros.stop()
 
     app = FastAPI(title="KMU26 VLA · ROV Console", lifespan=lifespan)
-    app.mount("/static", StaticFiles(directory=web_dir), name="static")
+    # colcon --symlink-install links installed web assets back to the source tree.
+    app.mount("/static", StaticFiles(directory=web_dir, follow_symlink=True), name="static")
 
     def snapshot():
         telemetry = ros.status()
@@ -60,6 +73,28 @@ def create_app(*, manager=None, ros=None, web_dir=None):
     @app.get("/api/status")
     def status():
         return snapshot()
+
+    @app.get("/api/cameras/{camera}/frame")
+    def camera_frame(camera: str):
+        if camera not in {"realsense", "imx219"}:
+            raise HTTPException(404, detail="등록되지 않은 카메라입니다.")
+        frame = ros.camera_frame(camera)
+        if frame is None:
+            raise HTTPException(503, detail="최근 카메라 영상이 없습니다.")
+        data, mime = frame
+        return Response(data, media_type=mime, headers={"Cache-Control": "no-store"})
+
+    @app.post("/api/dvl/command")
+    async def dvl_command(body: DvlRequest):
+        try:
+            await asyncio.to_thread(ros.dvl_command, body.command, body.parameter_name, body.parameter_value)
+        except ValueError as exc:
+            raise HTTPException(400, detail=str(exc)) from exc
+        except ConnectionError as exc:
+            raise HTTPException(503, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(409, detail=str(exc)) from exc
+        return await asyncio.to_thread(snapshot)
 
     async def launch_action(action, *args):
         try:
@@ -106,7 +141,8 @@ def main():
             # ROS launch can forward SIGINT after the terminal already delivered it.
             self.should_exit = True
 
-    config = uvicorn.Config(create_app(web_dir=args.web_dir), host=args.host, port=args.port)
+    config = uvicorn.Config(create_app(web_dir=args.web_dir), host=args.host, port=args.port,
+                            timeout_graceful_shutdown=3)
     ConsoleServer(config).run()
 
 

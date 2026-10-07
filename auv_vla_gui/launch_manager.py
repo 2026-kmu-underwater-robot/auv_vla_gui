@@ -1,10 +1,11 @@
 """Each launch button owns one independent ROS launch process group."""
 
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import threading
 
-from kmu26_auv_web_gui.process_manager import ManagedProcess
+from auv_web_gui.process_manager import ManagedProcess
 
 ROV_DEFAULTS = {
     "fcu_url": "/dev/ttyACM0:57600", "dvl_ip": "192.168.194.95",
@@ -17,19 +18,24 @@ class LaunchManager:
         self.logs = deque(maxlen=400)
         self._lock = threading.Lock()
         self.specs = {
-            "rov": {"title": "ROV", "package": "hit25_auv_ros2", "file": "rov_start.launch.py", "defaults": ROV_DEFAULTS},
+            "rov": {"title": "ROV", "package": "auv", "file": "rov_start.launch.py", "defaults": ROV_DEFAULTS},
             "realsense": {"title": "리얼센스", "package": "realsense2_camera", "file": "rs_launch.py", "defaults": {}},
+            "imx219": {"title": "IMX219", "package": "auv_imx219_camera", "file": "single_imx219.launch.py", "defaults": {}},
         }
         self._processes = {}
+        self._operation_locks = {launch_id: threading.Lock() for launch_id in self.specs}
         self._stopped = set()
         self._errors = {}
+        self._closing = False
         self._args = {key: dict(spec["defaults"]) for key, spec in self.specs.items()}
 
     def start(self, launch_id, launch_args):
         self._check_id(launch_id)
         spec = self.specs[launch_id]
         args = self._validate_args(launch_args, spec["defaults"])
-        with self._lock:
+        with self._operation_locks[launch_id], self._lock:
+            if self._closing:
+                raise RuntimeError("GUI 종료 중에는 노드를 시작할 수 없습니다.")
             process = self._processes.get(launch_id)
             if process and process.is_running:
                 raise RuntimeError(f"{spec['title']} 런치가 이미 실행 중입니다.")
@@ -51,22 +57,36 @@ class LaunchManager:
 
     def stop(self, launch_id):
         self._check_id(launch_id)
-        with self._lock:
-            process = self._processes.get(launch_id)
+        # Stop independent groups concurrently during GUI shutdown. The API
+        # serializes start/stop requests for the same launch with this lock.
+        with self._operation_locks[launch_id]:
+            with self._lock:
+                process = self._processes.get(launch_id)
             if process:
                 process.stop()
-            self._stopped.add(launch_id)
-            self._errors.pop(launch_id, None)
+            with self._lock:
+                self._stopped.add(launch_id)
+                self._errors.pop(launch_id, None)
 
     def stop_all(self):
         errors = []
-        for launch_id in self.specs:
-            try:
-                self.stop(launch_id)
-            except Exception as exc:
-                errors.append(str(exc))
+        with ThreadPoolExecutor(max_workers=len(self.specs)) as executor:
+            futures = [executor.submit(self.stop, launch_id) for launch_id in self.specs]
+            for future in futures:
+                try:
+                    future.result()
+                except Exception as exc:
+                    errors.append(str(exc))
         if errors:
             raise RuntimeError("; ".join(errors))
+
+    def begin_shutdown(self):
+        with self._lock:
+            self._closing = True
+
+    def shutdown(self):
+        self.begin_shutdown()
+        self.stop_all()
 
     def snapshot(self):
         with self._lock:
@@ -81,7 +101,9 @@ class LaunchManager:
                     state = "failed" if error or return_code != 0 else "exited"
                 launches.append({
                     "id": launch_id, "title": spec["title"], "package": spec["package"], "file": spec["file"],
-                    "state": state, "running": running, "pid": process.process.pid if running else None,
+                    "state": state, "running": running,
+                    "can_stop": bool(process and process.pgid is not None),
+                    "pid": process.process.pid if running else None,
                     "return_code": return_code, "error": error,
                     "launch_args": dict(self._args[launch_id]), "command": list(process.cmd) if process else [],
                 })
@@ -91,20 +113,25 @@ class LaunchManager:
         from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 
         spec = self.specs[launch_id]
-        required = {spec["package"]: "launch/" + spec["file"]}
+        required = {spec["package"]: ["launch/" + spec["file"]]}
         if launch_id == "rov":
-            required["mavros"] = "launch/apm.launch"
+            required["auv"].extend([
+                "launch/mavros_auv.launch", "config/mavros_auv_pluginlists.yaml",
+            ])
+            required["mavros"] = ["launch/node.launch", "launch/apm_config.yaml"]
             if args["use_dvl"] == "true":
-                required["dvl_a50"] = "launch/dvl_a50.launch.py"
+                required["auv_dvl_a50"] = ["launch/dvl_a50.launch.py"]
             if args["use_localization"] == "true":
-                required["robot_localization"] = ""
-        for package, relative_file in required.items():
+                required["auv"].append("config/auv_ekf.yaml")
+                required["robot_localization"] = []
+        for package, relative_files in required.items():
             try:
                 share = Path(get_package_share_directory(package))
             except PackageNotFoundError as exc:
                 raise RuntimeError(f"의존 패키지를 찾을 수 없습니다: {package}. 설치/빌드 후 GUI를 다시 실행하세요.") from exc
-            if relative_file and not (share / relative_file).is_file():
-                raise RuntimeError(f"런치 파일을 찾을 수 없습니다: {package}/{relative_file}.")
+            for relative_file in relative_files:
+                if not (share / relative_file).is_file():
+                    raise RuntimeError(f"런치/설정 파일을 찾을 수 없습니다: {package}/{relative_file}.")
 
     def _check_id(self, launch_id):
         if launch_id not in self.specs:
